@@ -4,7 +4,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=s=>Math.floor(s/3600)?Math.floor(s/3600)+'時 '+Math.floor(s%3600/60)+'分':Math.floor(s/60)+'分';
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-let state;try{state=JSON.parse(localStorage.getItem(KEY)||'null')}catch{}if(!state)state={};
+let state;try{state=JSON.parse(localStorage.getItem(KEY)||'null')}catch{}if(!state){try{const old=JSON.parse(localStorage.getItem('zhixu-study-v1')||'null');if(old&&typeof old==='object')state=old}catch{}}if(!state)state={};
 state.done??={};state.concepts??=[];state.errors??=[];state.news??=[];
 function save(){localStorage.setItem(KEY,JSON.stringify(state))}
 function go(t){document.querySelectorAll('.section').forEach(e=>e.classList.toggle('active',e.id===t));document.querySelectorAll('.tabs button').forEach(e=>e.classList.toggle('active',e.dataset.tab===t));render();window.scrollTo(0,0)}
