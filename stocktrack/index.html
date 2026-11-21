@@ -38,12 +38,12 @@ footer{color:#91a6c0}a{color:#83baf5}
 #selected .pill button{flex-shrink:0}
 @media(min-width:700px){#selected{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:500px){.card{padding:17px}header{padding:20px 18px 14px}main{padding:12px}h1{font-size:25px}#selected{gap:8px}}
-</style></head><body><header><div style="max-width:900px;margin:auto"><small>STOCKTRACK · RESEARCH TOOLS</small><h1>股票比較器</h1><div style="opacity:.85;font-size:13px">台股 × 美股 × ETF｜v0.2 深藍介面</div><div class="market-chips"><span>TW 台股</span><span>US 美股</span><span>ETF</span></div></div></header><main>
-<section class="card"><h2>01 選擇比較標的 <span class="sub" id="count"></span></h2><input id="search" placeholder="搜尋代碼或名稱，例如 2330、NVDA、0050" autocomplete="off"><div class="results" id="results"></div><div id="selected"></div><div class="notice">目前使用明確標示的模擬資料，尚未串接即時行情、真實財報或 AI。請勿用於投資決策。</div></section>
-<section class="card"><h2>02 歷史報酬比較</h2><div class="controls"><select id="period"><option value="1">1 個月</option><option value="3">3 個月</option><option value="12" selected>1 年</option></select><select id="currency"><option value="native">標準化報酬（原幣別）</option><option value="twd">統一換算 TWD（示意）</option></select></div><canvas id="chart" aria-label="模擬歷史報酬折線圖" role="img"></canvas><div id="legend" class="legend"></div><p class="sub">基期 = 100。資料為固定模擬序列；跨幣別換算功能待真實歷史匯率 API 接入，切換 TWD 不會產生虛構匯率。</p></section>
+</style></head><body><header><div style="max-width:900px;margin:auto"><small>STOCKTRACK · RESEARCH TOOLS</small><h1>股票比較器</h1><div style="opacity:.85;font-size:13px">台股 × 美股 × ETF｜v0.3 台股行情 Beta</div><div class="market-chips"><span>TW 台股</span><span>US 美股</span><span>ETF</span></div></div></header><main>
+<section class="card"><h2>01 選擇比較標的 <span class="sub" id="count"></span></h2><input id="search" placeholder="搜尋代碼或名稱，例如 2330、NVDA、0050" autocomplete="off"><div class="results" id="results"></div><div id="selected"></div><div class="notice">v0.3 可手動載入台股真實歷史日線。美股、財報表格仍未串接，表格數值全部為模擬值。非即時行情，請勿據此交易。</div></section>
+<section class="card"><h2>02 歷史報酬比較</h2><div class="controls"><select id="period"><option value="1">1 個月</option><option value="3">3 個月</option><option value="12" selected>1 年</option></select><select id="currency"><option value="native">標準化報酬（原幣別）</option><option value="twd" disabled>統一換算 TWD（待開發）</option></select></div><div class="controls" style="margin:12px 0"><button id="loadPrices" class="primary">載入台股歷史行情</button><span class="sub" id="priceStatus">尚未載入真實行情</span></div><canvas id="chart" aria-label="模擬歷史報酬折線圖" role="img"></canvas><div id="legend" class="legend"></div><p class="sub">基期 = 100。載入後使用 FinMind 台股還原日收盤價；美股暫不支援，且不會以模擬值冒充真實行情。不同市場休市日依共同日期對齊；匯率換算尚未開放。</p></section>
 <section class="card"><h2>03 財務指標比較</h2><div class="controls" id="tabs"><button data-tab="fund" class="primary">基本面</button><button data-tab="risk">市場風險</button><button data-tab="div">股息</button></div><div class="scroll"><table id="metrics"></table></div><p class="sub">ETF 不適用個股 ROE、EPS 等財報指標。各項數字均為測試值。</p></section>
 <section class="card"><h2>04 儲存比較清單</h2><div class="controls"><button class="primary" id="save">儲存到此瀏覽器</button><button id="export">匯出 JSON</button><button id="reset">重設比較</button></div><p class="sub" id="status">儲存於目前裝置 localStorage，不會同步到其他裝置。正式版將串接 Supabase。</p></section>
-</main><footer><a href="../">返回知序 Study Vault</a> · StockTrack v0.2 · 僅供產品測試</footer>
+</main><footer><a href="../">返回知序 Study Vault</a> · StockTrack v0.3 · 僅供產品測試</footer>
 <script>
 "use strict";
 const stocks=[
@@ -61,7 +61,46 @@ function render(){ $("count").textContent=selected.length+"/5";$("selected").rep
 const fields={fund:[["本益比 P/E","pe"," 倍"],["ROE","roe","%"],["營收年增率","revenue","%"],["毛利率","margin","%"]],risk:[["年化波動率","vol","%"],["最大回撤","drawdown","%"]],div:[["股息殖利率","dividend","%"]]};
 function drawTable(){let t=$("metrics");t.replaceChildren();let tr=document.createElement("tr");["指標",...selected.map(id=>stocks.find(s=>s.id===id).code)].forEach(x=>{let th=document.createElement("th");th.textContent=x;tr.append(th)});t.append(tr);fields[tab].forEach(([label,key,unit])=>{let r=document.createElement("tr"),a=document.createElement("td");a.textContent=label;r.append(a);selected.forEach(id=>{let v=stocks.find(s=>s.id===id)[key],c=document.createElement("td");c.textContent=v===null?"不適用":v.toFixed(1)+unit;r.append(c)});t.append(r)})}
 function series(s,n){return Array.from({length:n},(_,i)=>{let t=i/(n-1),noise=Math.sin(i*.79+s.seed)*3.2+Math.sin(i*.31+s.seed)*2;return 100+s.growth*t+noise-noise*(1-t)*.4})}
-function drawChart(){let c=$("chart"),rect=c.getBoundingClientRect(),w=Math.max(250,rect.width),h=250,dpr=window.devicePixelRatio||1;c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);let ctx=c.getContext("2d");ctx.scale(dpr,dpr);ctx.clearRect(0,0,w,h);let n=Number($("period").value)*8+1,sets=selected.map(id=>series(stocks.find(s=>s.id===id),n));let all=sets.flat(),lo=Math.floor((Math.min(...all)-8)/10)*10,hi=Math.ceil((Math.max(...all)+8)/10)*10,p={l:36,r:10,t:12,b:25};ctx.font="11px sans-serif";ctx.lineWidth=1;for(let j=0;j<5;j++){let y=p.t+(h-p.t-p.b)*j/4,val=hi-(hi-lo)*j/4;ctx.strokeStyle="#40516a";ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(w-p.r,y);ctx.stroke();ctx.fillStyle="#a5b5ca";ctx.fillText(val.toFixed(0),2,y+4)}sets.forEach((arr,k)=>{ctx.strokeStyle=colors[k];ctx.lineWidth=2.5;ctx.beginPath();arr.forEach((v,i)=>{let x=p.l+(w-p.l-p.r)*i/(n-1),y=p.t+(hi-v)/(hi-lo)*(h-p.t-p.b);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});$("legend").replaceChildren();selected.forEach((id,k)=>{let s=stocks.find(x=>x.id===id),span=document.createElement("span"),dot=document.createElement("i");dot.className="dot";dot.style.background=colors[k];span.append(dot,document.createTextNode(s.code+" "+s.name));$("legend").append(span)})}
+
+const realPrices=new Map();
+function drawChart(){
+let c=$("chart"),rect=c.getBoundingClientRect(),w=Math.max(250,rect.width),height=260,dpr=window.devicePixelRatio||1;
+c.width=Math.round(w*dpr);c.height=Math.round(height*dpr);
+let ctx=c.getContext("2d");ctx.scale(dpr,dpr);ctx.clearRect(0,0,w,height);
+const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-Number($("period").value));
+const data=selected.map(id=>({id,points:(realPrices.get(id)||[]).filter(x=>x.date>=cutoff.toISOString().slice(0,10))}));
+const active=data.filter(d=>d.points.length>=2);
+$("legend").replaceChildren();
+if(!active.length){ctx.fillStyle="#a5b5ca";ctx.font="14px sans-serif";ctx.textAlign="center";ctx.fillText("點選「載入台股歷史行情」查看真實資料",w/2,height/2);ctx.textAlign="left";return;}
+let dates=[...new Set(active.flatMap(d=>d.points.map(x=>x.date)))].sort();
+const common=dates.filter(date=>active.every(d=>d.points.some(x=>x.date===date)));
+if(common.length<2){ctx.fillStyle="#a5b5ca";ctx.font="13px sans-serif";ctx.textAlign="center";ctx.fillText("標的沒有足夠的共同交易日",w/2,height/2);ctx.textAlign="left";return;}
+const lines=active.map(d=>{let m=new Map(d.points.map(x=>[x.date,x.close])),base=m.get(common[0]);return {id:d.id,values:common.map(x=>100*m.get(x)/base)}});
+let all=lines.flatMap(x=>x.values),lo=Math.floor((Math.min(...all)-5)/10)*10,hi=Math.ceil((Math.max(...all)+5)/10)*10;if(lo===hi)hi=lo+10;
+let p={l:38,r:10,t:12,b:28};ctx.font="11px sans-serif";ctx.lineWidth=1;
+for(let j=0;j<5;j++){let y=p.t+(height-p.t-p.b)*j/4,val=hi-(hi-lo)*j/4;ctx.strokeStyle="#40516a";ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(w-p.r,y);ctx.stroke();ctx.fillStyle="#a5b5ca";ctx.fillText(val.toFixed(0),2,y+4)}
+lines.forEach(line=>{let k=selected.indexOf(line.id);ctx.strokeStyle=colors[k];ctx.lineWidth=2.5;ctx.beginPath();line.values.forEach((v,i)=>{let x=p.l+(w-p.l-p.r)*i/(common.length-1),y=p.t+(hi-v)/(hi-lo)*(height-p.t-p.b);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();let span=document.createElement("span"),dot=document.createElement("i");dot.className="dot";dot.style.background=colors[k];span.append(dot,document.createTextNode(stocks.find(s=>s.id===line.id).code+" · "+common.at(-1)));$("legend").append(span)});
+ctx.fillStyle="#a5b5ca";ctx.fillText(common[0],p.l,height-6);ctx.textAlign="right";ctx.fillText(common.at(-1),w-p.r,height-6);ctx.textAlign="left";
+}
+async function loadPrices(){
+const button=$("loadPrices"),ids=selected.filter(x=>x.startsWith("TW:"));if(!ids.length){$("priceStatus").textContent="請先選擇台股";return}
+button.disabled=true;$("priceStatus").textContent="讀取中…";
+const start=new Date();start.setFullYear(start.getFullYear()-1);start.setDate(start.getDate()-8);
+const date=start.toISOString().slice(0,10);
+let success=[],failed=[];
+for(const id of ids){try{
+const symbol=id.split(":")[1],url="https://api.finmindtrade.com/api/v4/data?"+new URLSearchParams({dataset:"TaiwanStockPriceAdj",data_id:symbol,start_date:date});
+const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+let response;try{response=await fetch(url,{signal:controller.signal})}finally{clearTimeout(timer)}
+if(!response.ok)throw Error("HTTP "+response.status);
+const json=await response.json();if(json.status!==200||!Array.isArray(json.data))throw Error(json.msg||"資料格式錯誤");
+const points=json.data.map(x=>({date:String(x.date),close:Number(x.close)})).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.date)&&Number.isFinite(x.close)&&x.close>0).sort((a,b)=>a.date.localeCompare(b.date));
+if(points.length<2)throw Error("資料不足");realPrices.set(id,points);success.push(symbol);
+}catch(e){failed.push(id.split(":")[1]+": "+String(e.message||e).slice(0,55))}}
+$("priceStatus").textContent=(success.length?"已載入 "+success.join("、")+"；":"")+(failed.length?"失敗 "+failed.join("；"):"")+(selected.some(x=>x.startsWith("US:"))?"；美股尚未串接":"");
+button.disabled=false;drawChart();
+}
+$("loadPrices").onclick=loadPrices;
 $("search").addEventListener("input",drawSearch);$("period").onchange=drawChart;$("currency").onchange=()=>{$("status").textContent=$("currency").value==="twd"?"尚未接入歷史匯率，圖表仍顯示原幣標準化報酬。":"目前顯示原幣標準化報酬。";drawChart()};
 $("tabs").addEventListener("click",e=>{let b=e.target.closest("button[data-tab]");if(!b)return;tab=b.dataset.tab;document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("primary",x===b));drawTable()});
 $("save").onclick=()=>{try{localStorage.setItem("stocktrack-compare-v01",JSON.stringify(selected));$("status").textContent="已儲存於此瀏覽器（非雲端同步）。"}catch{$("status").textContent="儲存失敗，請確認瀏覽器允許本機儲存。"}};
