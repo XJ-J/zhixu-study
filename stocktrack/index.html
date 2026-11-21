@@ -38,12 +38,12 @@ footer{color:#91a6c0}a{color:#83baf5}
 #selected .pill button{flex-shrink:0}
 @media(min-width:700px){#selected{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:500px){.card{padding:17px}header{padding:20px 18px 14px}main{padding:12px}h1{font-size:25px}#selected{gap:8px}}
-</style></head><body><header><div style="max-width:900px;margin:auto"><small>STOCKTRACK · RESEARCH TOOLS</small><h1>股票比較器</h1><div style="opacity:.85;font-size:13px">台股 × 美股 × ETF｜v0.3 台股行情 Beta</div><div class="market-chips"><span>TW 台股</span><span>US 美股</span><span>ETF</span></div></div></header><main>
-<section class="card"><h2>01 選擇比較標的 <span class="sub" id="count"></span></h2><input id="search" placeholder="搜尋代碼或名稱，例如 2330、NVDA、0050" autocomplete="off"><div class="results" id="results"></div><div id="selected"></div><div class="notice">v0.3 可手動載入台股真實歷史日線。美股、財報表格仍未串接，表格數值全部為模擬值。非即時行情，請勿據此交易。</div></section>
+</style></head><body><header><div style="max-width:900px;margin:auto"><small>STOCKTRACK · RESEARCH TOOLS</small><h1>股票比較器</h1><div style="opacity:.85;font-size:13px">台股 × 美股 × ETF｜v0.4 台股估值 Beta</div><div class="market-chips"><span>TW 台股</span><span>US 美股</span><span>ETF</span></div></div></header><main>
+<section class="card"><h2>01 選擇比較標的 <span class="sub" id="count"></span></h2><input id="search" placeholder="搜尋代碼或名稱，例如 2330、NVDA、0050" autocomplete="off"><div class="results" id="results"></div><div id="selected"></div><div class="notice">v0.4 可手動載入台股歷史日線與本益比、殖利率；美股資料與其餘財務指標尚未串接。所有未取得資料均顯示缺值，非即時行情。</div></section>
 <section class="card"><h2>02 歷史報酬比較</h2><div class="controls"><select id="period"><option value="1">1 個月</option><option value="3">3 個月</option><option value="12" selected>1 年</option></select><select id="currency"><option value="native">標準化報酬（原幣別）</option><option value="twd" disabled>統一換算 TWD（待開發）</option></select></div><div class="controls" style="margin:12px 0"><button id="loadPrices" class="primary">載入台股歷史行情</button><span class="sub" id="priceStatus">尚未載入真實行情</span></div><canvas id="chart" aria-label="模擬歷史報酬折線圖" role="img"></canvas><div id="legend" class="legend"></div><p class="sub">基期 = 100。載入後使用 FinMind 台股還原日收盤價；美股暫不支援，且不會以模擬值冒充真實行情。不同市場休市日依共同日期對齊；匯率換算尚未開放。</p></section>
-<section class="card"><h2>03 財務指標比較</h2><div class="controls" id="tabs"><button data-tab="fund" class="primary">基本面</button><button data-tab="risk">市場風險</button><button data-tab="div">股息</button></div><div class="scroll"><table id="metrics"></table></div><p class="sub">ETF 不適用個股 ROE、EPS 等財報指標。各項數字均為測試值。</p></section>
+<section class="card"><h2>03 財務指標比較</h2><div class="controls" id="tabs"><button data-tab="fund" class="primary">基本面</button><button data-tab="risk">市場風險</button><button data-tab="div">股息</button></div><div class="controls" style="margin:12px 0"><button id="loadMetrics" class="primary">載入台股真實估值</button><span class="sub" id="metricsStatus">尚未載入真實財務資料</span></div><div class="scroll"><table id="metrics"></table></div><p class="sub">台股估值取自 FinMind TaiwanStockPER；未取得的數據顯示「—」，不以示意數字替代。ROE、營收、波動與回撤尚未串接。ETF 不適用部分個股指標。</p></section>
 <section class="card"><h2>04 儲存比較清單</h2><div class="controls"><button class="primary" id="save">儲存到此瀏覽器</button><button id="export">匯出 JSON</button><button id="reset">重設比較</button></div><p class="sub" id="status">儲存於目前裝置 localStorage，不會同步到其他裝置。正式版將串接 Supabase。</p></section>
-</main><footer><a href="../">返回知序 Study Vault</a> · StockTrack v0.3 · 僅供產品測試</footer>
+</main><footer><a href="../">返回知序 Study Vault</a> · StockTrack v0.4 · 僅供產品測試</footer>
 <script>
 "use strict";
 const stocks=[
@@ -55,11 +55,28 @@ const stocks=[
 {id:"US:MSFT",code:"MSFT",name:"Microsoft",market:"US",type:"stock",pe:31,roe:34,revenue:16,margin:68,dividend:.8,vol:25,drawdown:-20,seed:37,growth:19}
 ];
 const $=id=>document.getElementById(id), colors=["#80b4f7","#7bd3b7","#bd9bf0","#efb778","#f48fa8"];let selected=["TW:2330","US:NVDA"],tab="fund";
-try{const x=JSON.parse(localStorage.getItem("stocktrack-compare-v02"));if(Array.isArray(x)&&x.length>=1&&x.length<=5&&x.every(id=>stocks.some(s=>s.id===id)))selected=x}catch{}
+try{const x=JSON.parse(localStorage.getItem("stocktrack-compare-v04"));if(Array.isArray(x)&&x.length>=1&&x.length<=5&&x.every(id=>stocks.some(s=>s.id===id)))selected=x}catch{}
 function drawSearch(){let q=$("search").value.trim().toLowerCase();$("results").replaceChildren();stocks.filter(s=>(s.code+" "+s.name+" "+s.market).toLowerCase().includes(q)&&!selected.includes(s.id)).forEach(s=>{let b=document.createElement("button");b.disabled=selected.length>=5;b.textContent=s.code+" · "+s.name;let sm=document.createElement("small");sm.textContent=s.market+" / "+(s.type==="etf"?"ETF":"個股");b.append(sm);b.onclick=()=>{selected.push(s.id);render()};$("results").append(b)});}
 function render(){ $("count").textContent=selected.length+"/5";$("selected").replaceChildren();selected.forEach(id=>{let s=stocks.find(x=>x.id===id),p=document.createElement("span"),b=document.createElement("button");p.className="pill";p.append(document.createTextNode(s.code+" "+s.name));b.textContent="×";b.setAttribute("aria-label","移除 "+s.name);b.disabled=selected.length===1;b.onclick=()=>{selected=selected.filter(x=>x!==id);render()};p.append(b);$("selected").append(p)});drawSearch();drawTable();drawChart()}
 const fields={fund:[["本益比 P/E","pe"," 倍"],["ROE","roe","%"],["營收年增率","revenue","%"],["毛利率","margin","%"]],risk:[["年化波動率","vol","%"],["最大回撤","drawdown","%"]],div:[["股息殖利率","dividend","%"]]};
-function drawTable(){let t=$("metrics");t.replaceChildren();let tr=document.createElement("tr");["指標",...selected.map(id=>stocks.find(s=>s.id===id).code)].forEach(x=>{let th=document.createElement("th");th.textContent=x;tr.append(th)});t.append(tr);fields[tab].forEach(([label,key,unit])=>{let r=document.createElement("tr"),a=document.createElement("td");a.textContent=label;r.append(a);selected.forEach(id=>{let v=stocks.find(s=>s.id===id)[key],c=document.createElement("td");c.textContent=v===null?"不適用":v.toFixed(1)+unit;r.append(c)});t.append(r)})}
+
+const liveMetrics=new Map();
+function drawTable(){let t=$("metrics");t.replaceChildren();let tr=document.createElement("tr");["指標",...selected.map(id=>stocks.find(s=>s.id===id).code)].forEach(x=>{let th=document.createElement("th");th.textContent=x;tr.append(th)});t.append(tr);
+const rows=tab==="fund"?[["本益比 P/E","PER"," 倍"],["股價淨值比 P/B","PBR"," 倍"],["ROE","roe","%"],["營收年增率","revenue","%"],["毛利率","margin","%"]]:tab==="div"?[["股息殖利率","dividend_yield","%"]]:[["年化波動率","vol","%"],["最大回撤","drawdown","%"]];
+rows.forEach(([label,key,unit])=>{let r=document.createElement("tr"),a=document.createElement("td");a.textContent=label;r.append(a);selected.forEach(id=>{let record=liveMetrics.get(id),v=record&&Object.prototype.hasOwnProperty.call(record,key)?record[key]:null,c=document.createElement("td");c.textContent=v===null?"—":Number(v).toFixed(2)+unit;if(record&&v!==null)c.title="FinMind · "+record.date;r.append(c)});t.append(r)});
+}
+async function loadMetrics(){
+const ids=selected.filter(id=>id.startsWith("TW:")&&stocks.find(s=>s.id===id).type==="stock"),button=$("loadMetrics");if(!ids.length){$("metricsStatus").textContent="請選擇台股個股";return}
+button.disabled=true;$("metricsStatus").textContent="讀取中…";const start=new Date();start.setDate(start.getDate()-40);const startDate=start.toISOString().slice(0,10);let ok=[],failed=[];
+for(const id of ids){try{const url="https://api.finmindtrade.com/api/v4/data?"+new URLSearchParams({dataset:"TaiwanStockPER",data_id:id.split(":")[1],start_date:startDate});const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);let response;try{response=await fetch(url,{signal:controller.signal})}finally{clearTimeout(timer)}
+if(!response.ok)throw Error("HTTP "+response.status);const json=await response.json();if(json.status!==200||!Array.isArray(json.data))throw Error(json.msg||"資料格式錯誤");
+const rows=json.data.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))).sort((a,b)=>String(a.date).localeCompare(String(b.date)));if(!rows.length)throw Error("無可用資料");
+const last=rows.at(-1),number=x=>x===null||x===undefined||x===""||!Number.isFinite(Number(x))||Number(x)<=0?null:Number(x);
+liveMetrics.set(id,{date:last.date,PER:number(last.PER),PBR:number(last.PBR),dividend_yield:number(last.dividend_yield)});ok.push(id.split(":")[1]+"("+last.date+")");
+}catch(e){liveMetrics.delete(id);failed.push(id.split(":")[1]+": "+String(e.message||e).slice(0,45))}}
+button.disabled=false;$("metricsStatus").textContent=(ok.length?"成功："+ok.join("、"):"")+(failed.length?"；失敗："+failed.join("；"):"")+(selected.some(id=>id.startsWith("US:"))?"；美股尚未支援":"");drawTable();
+}
+$("loadMetrics").onclick=loadMetrics;
 function series(s,n){return Array.from({length:n},(_,i)=>{let t=i/(n-1),noise=Math.sin(i*.79+s.seed)*3.2+Math.sin(i*.31+s.seed)*2;return 100+s.growth*t+noise-noise*(1-t)*.4})}
 
 const realPrices=new Map();
@@ -105,6 +122,6 @@ $("search").addEventListener("input",drawSearch);$("period").onchange=drawChart;
 $("tabs").addEventListener("click",e=>{let b=e.target.closest("button[data-tab]");if(!b)return;tab=b.dataset.tab;document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("primary",x===b));drawTable()});
 $("save").onclick=()=>{try{localStorage.setItem("stocktrack-compare-v01",JSON.stringify(selected));$("status").textContent="已儲存於此瀏覽器（非雲端同步）。"}catch{$("status").textContent="儲存失敗，請確認瀏覽器允許本機儲存。"}};
 $("reset").onclick=()=>{selected=["TW:2330","US:NVDA"];render();$("status").textContent="已重設畫面；按「儲存」才會覆蓋已儲存清單。"};
-$("export").onclick=()=>{let blob=new Blob([JSON.stringify({version:"0.2",demo:true,selected,exportedAt:new Date().toISOString()},null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="stocktrack-comparison.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$("export").onclick=()=>{let blob=new Blob([JSON.stringify({version:"0.4",demo:true,selected,exportedAt:new Date().toISOString()},null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="stocktrack-comparison.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 window.addEventListener("resize",drawChart);render();
 </script></body></html>
